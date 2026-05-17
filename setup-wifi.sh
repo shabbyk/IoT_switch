@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "=== Water Pump — WiFi Setup ==="
+echo "=== IoT Switch — WiFi Setup ==="
 echo "This will set up:"
 echo "  1. Home WiFi connection (auto-connect when available)"
 echo "  2. Fallback hotspot (auto-starts when home WiFi is unreachable)"
@@ -41,7 +41,7 @@ SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
 
 sudo tee "$SERVICE_FILE" > /dev/null <<'EOF'
 [Unit]
-Description=Pump WiFi Fallback Monitor
+Description=IoT Switch WiFi Fallback Monitor
 After=network-online.target
 Wants=network-online.target
 

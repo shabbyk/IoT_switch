@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "=== Water Pump Controller — Pi Setup ==="
+echo "=== IoT Switch — Pi Setup ==="
 
 # 1. update system
 sudo apt-get update && sudo apt-get upgrade -y
@@ -25,7 +25,7 @@ SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
 
 sudo tee "$SERVICE_FILE" > /dev/null <<EOF
 [Unit]
-Description=Water Pump Controller
+Description=IoT Switch
 After=network.target
 
 [Service]

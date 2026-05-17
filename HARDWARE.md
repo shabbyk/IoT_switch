@@ -1,4 +1,4 @@
-# Water Pump Controller — Hardware Guide
+# IoT Switch — Hardware Guide
 
 ## Shopping List
 
