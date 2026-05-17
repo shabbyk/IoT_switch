@@ -1,0 +1,9 @@
+{
+  "relay_gpio": 17,
+  "schedules": [],
+  "manual_override": {
+    "state": true,
+    "until": "2026-05-17T23:22:34.356648",
+    "duration": 15
+  }
+}

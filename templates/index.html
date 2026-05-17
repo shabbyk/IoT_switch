@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Water Pump Switch</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="container">
+    <h1>Water Pump Switch</h1>
+
+    <div class="card status-card">
+      <div class="pump-status" id="pump-status">
+        <div class="power-icon" id="power-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2v10"/>
+            <path d="M18.4 6.6a9 9 0 1 1-12.8 0"/>
+          </svg>
+        </div>
+        <div class="status-main">
+          <span class="indicator" id="pump-indicator"></span>
+          <span id="pump-label">Checking...</span>
+        </div>
+      </div>
+      <div class="timer-bar-container" id="timer-bar-container" style="display:none">
+        <div class="timer-bar" id="timer-bar"></div>
+      </div>
+      <div class="timer-text" id="timer-text"></div>
+      <p class="subtitle" id="pump-reason"></p>
+    </div>
+
+    <div class="card">
+      <h2>Manual Override</h2>
+      <button class="btn btn-on" id="btn-on" onclick="manualOn()">Turn ON</button>
+      <button class="btn btn-off" onclick="manualOff()">Turn OFF</button>
+      <div class="timer-group" id="timer-group" style="display:none">
+        <label>Run for (minutes):</label>
+        <input type="number" id="manual-duration" value="15" min="1" max="480">
+        <small>Leave empty to stay on indefinitely</small>
+      </div>
+      <button class="btn btn-auto" onclick="clearManual()">Clear Override → Auto</button>
+    </div>
+
+    <div class="card">
+      <h2>Schedules</h2>
+      <table id="schedule-table">
+        <thead>
+          <tr><th>Time</th><th>Duration</th><th>Days</th><th></th></tr>
+        </thead>
+        <tbody id="schedule-body"></tbody>
+      </table>
+      <hr>
+      <h3>Add Schedule</h3>
+      <form id="schedule-form" onsubmit="addSchedule(event)">
+        <div class="form-row">
+          <label>Time: <input type="time" id="new-time" required></label>
+          <label>Duration (min): <input type="number" id="new-duration" value="30" min="1" max="480" required></label>
+        </div>
+        <fieldset>
+          <legend>Days</legend>
+          <div class="day-checkboxes">
+            {% for num, name in weekdays %}
+            <label><input type="checkbox" name="days" value="{{ num }}" checked> {{ name[:3] }}</label>
+            {% endfor %}
+          </div>
+        </fieldset>
+        <button type="submit" class="btn btn-add">Add Schedule</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2>Hardware</h2>
+      <p>GPIO Pin: <strong>BCM {{ initial_status.relay_gpio }}</strong></p>
+    </div>
+  </div>
+
+  <script>
+    let countdownInterval = null;
+    let timerStart = null;
+    let timerTotal = null;
+
+    function fetchStatus() {
+      return fetch('/api/status').then(r => r.json());
+    }
+
+    function formatTime(seconds) {
+      if (seconds == null || seconds < 0) return '';
+      const h = Math.floor(seconds / 3600);
+      const m = Math.floor((seconds % 3600) / 60);
+      const s = seconds % 60;
+      const ss = String(s).padStart(2, '0');
+      if (h > 0) return `${h}h ${m}m ${ss}s`;
+      return `${m}m ${ss}s`;
+    }
+
+    function getElapsedSeconds(startedAt) {
+      if (!startedAt) return 0;
+      return Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000);
+    }
+
+    function renderStatus(data) {
+      const indicator = document.getElementById('pump-indicator');
+      const label = document.getElementById('pump-label');
+      const reason = document.getElementById('pump-reason');
+      const powerIcon = document.getElementById('power-icon');
+      const timerContainer = document.getElementById('timer-bar-container');
+      const timerBar = document.getElementById('timer-bar');
+      const timerText = document.getElementById('timer-text');
+
+      // Power icon glow
+      powerIcon.classList.toggle('on', data.pump_on);
+
+      // Indicator + label
+      if (data.pump_on) {
+        indicator.className = 'indicator on';
+        label.textContent = 'PUMP RUNNING';
+        document.body.classList.add('pump-active');
+      } else {
+        indicator.className = 'indicator off';
+        label.textContent = 'PUMP OFF';
+        document.body.classList.remove('pump-active');
+      }
+
+      // Reason
+      if (data.manual_override) {
+        const mo = data.manual_override;
+        if (mo.state) {
+          reason.textContent = mo.duration ? 'Manual override (timed)' : 'Manual override (indefinite)';
+        } else {
+          reason.textContent = 'Manually locked OFF';
+        }
+      } else if (data.active_schedule) {
+        const s = data.active_schedule;
+        reason.textContent = `Schedule: ${s.time} → ${s.duration_minutes} min`;
+      } else {
+        reason.textContent = 'Auto mode — no active schedule';
+      }
+
+      // Timer bar + countdown
+      const remaining = data.pump_remaining_seconds;
+      timerStart = data.pump_started_at;
+      if (data.pump_on && remaining != null && timerStart) {
+        timerTotal = remaining + getElapsedSeconds(timerStart);
+        updateTimerDisplay();
+        timerContainer.style.display = 'block';
+        startCountdown();
+      } else {
+        timerContainer.style.display = 'none';
+        timerTotal = null;
+        if (data.pump_on) {
+          timerText.innerHTML = '<span class="timer-large">Running</span><span class="timer-unit"> indefinite</span>';
+          timerText.className = 'timer-text visible';
+        } else {
+          timerText.textContent = '';
+          timerText.className = 'timer-text';
+        }
+        stopCountdown();
+      }
+    }
+
+    function updateTimerDisplay() {
+      if (!timerStart || !timerTotal) return;
+      const elapsed = getElapsedSeconds(timerStart);
+      const left = Math.max(0, timerTotal - elapsed);
+      const timerText = document.getElementById('timer-text');
+      const timerBar = document.getElementById('timer-bar');
+
+      const h = Math.floor(left / 3600);
+      const m = Math.floor((left % 3600) / 60);
+      const s = left % 60;
+      const ss = String(s).padStart(2, '0');
+
+      if (h > 0) {
+        timerText.innerHTML = `<span class="timer-large">${h}</span><span class="timer-unit">h </span><span class="timer-large">${String(m).padStart(2, '0')}</span><span class="timer-unit">m </span><span class="timer-large">${ss}</span><span class="timer-unit">s</span>`;
+      } else {
+        timerText.innerHTML = `<span class="timer-large">${m}</span><span class="timer-unit">m </span><span class="timer-large">${ss}</span><span class="timer-unit">s</span>`;
+      }
+
+      if (timerTotal > 0) timerBar.style.width = ((left / timerTotal) * 100) + '%';
+      if (left <= 0) refresh();
+    }
+
+    function startCountdown() {
+      if (countdownInterval) return;
+      countdownInterval = setInterval(updateTimerDisplay, 200);
+    }
+
+    function stopCountdown() {
+      if (countdownInterval) {
+        clearInterval(countdownInterval);
+        countdownInterval = null;
+      }
+    }
+
+    function renderSchedules(schedules) {
+      const tbody = document.getElementById('schedule-body');
+      const dayNames = {1:'Mon',2:'Tue',3:'Wed',4:'Thu',5:'Fri',6:'Sat',7:'Sun'};
+
+      if (schedules.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" class="empty">No schedules yet</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = schedules.map(s => {
+        const days = (s.days || []).map(d => dayNames[d]).filter(Boolean).join(', ') || 'None';
+        return `<tr>
+          <td>${s.time}</td>
+          <td>${s.duration_minutes} min</td>
+          <td>${days}</td>
+          <td><button class="btn-small btn-danger" onclick="removeSchedule(${s.id})">✕</button></td>
+        </tr>`;
+      }).join('');
+    }
+
+    function refresh() {
+      fetchStatus().then(data => {
+        renderStatus(data);
+        renderSchedules(data.schedules);
+      });
+    }
+
+    function manualOn() {
+      const durationInput = document.getElementById('manual-duration');
+      const duration = durationInput.value ? parseInt(durationInput.value) : null;
+      fetch('/api/manual', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({state: true, duration: duration})
+      }).then(r => r.json()).then(refresh);
+    }
+
+    function manualOff() {
+      fetch('/api/manual', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({state: false})
+      }).then(r => r.json()).then(refresh);
+    }
+
+    function clearManual() {
+      fetch('/api/manual', {method: 'DELETE'}).then(r => r.json()).then(refresh);
+    }
+
+    function addSchedule(e) {
+      e.preventDefault();
+      const time = document.getElementById('new-time').value;
+      const duration = parseInt(document.getElementById('new-duration').value);
+      const dayCheckboxes = document.querySelectorAll('input[name="days"]:checked');
+      const days = Array.from(dayCheckboxes).map(cb => parseInt(cb.value));
+
+      if (!time) return;
+      fetch('/api/schedules', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({time, duration_minutes: duration, days})
+      }).then(r => r.json()).then(refresh);
+    }
+
+    function removeSchedule(id) {
+      fetch(`/api/schedules/${id}`, {method: 'DELETE'}).then(r => r.json()).then(refresh);
+    }
+
+    document.getElementById('btn-on').addEventListener('click', () => {
+      document.getElementById('timer-group').style.display = 'block';
+    });
+
+    refresh();
+    setInterval(refresh, 5000);
+  </script>
+</body>
+</html>
