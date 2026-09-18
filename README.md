@@ -8,51 +8,108 @@ A general-purpose programmable smart switch with a web UI — written in **Rust*
 - **rust-embed** — HTML/CSS compiled into the binary
 - Gates on hardware: without a Pi (or with `IOT_SWITCH_SIMULATE=1`) it runs in simulation mode.
 
-## Local dev (no Pi needed)
+## Run locally (on your dev machine, no Pi needed)
+
+The app auto-detects hardware: if there's no Raspberry Pi GPIO, it starts in **simulation mode**.
 
 ```bash
-cargo run                 # simulation mode automatically (no /dev/gpiomem)
-curl localhost:5000/api/status
+cargo run                      # build + start
+# → http://localhost:5000
+curl localhost:5000/api/status # or open the web UI in a browser
 ```
+
+To force simulation mode explicitly:
+
+```bash
+IOT_SWITCH_SIMULATE=1 cargo run
+```
+
+Stop it with `Ctrl+C`. State persists to `config.json` in the repo, and a fresh `config.json`
+is created automatically if it doesn't exist.
 
 ## Build the Pi binary (cross-compile)
 
-On any machine (aarch64 for 64-bit DietPi on a Pi Zero 2):
+Builds a single aarch64 ARM binary on any machine — you never need to compile on the Pi.
+
+One-time toolchain setup:
 
 ```bash
-# one-time toolchain
+# Raspberry Pi 64-bit target (DietPi 64-bit, Pi Zero 2 / Pi 3+)
 rustup target add aarch64-unknown-linux-gnu
-# install zig (https://ziglang.org, any stable) + cargo-zigbuild:
-#   curl -L https://ziglang.org/download/.../zig-x86_64-linux-*.tar.xz | tar -xJ
-#   cargo install cargo-zigbuild
 
-./build-pi.sh             # → dist/iot-switch (aarch64)
+# zig — any stable version, put it on PATH
+curl -L https://ziglang.org/download/0.14.1/zig-x86_64-linux-0.14.1.tar.xz | tar -xJ
+# then add zig-x86_64-linux-0.14.1/zig to your PATH (e.g. symlink into ~/.local/bin)
+
+# cross-compile wrapper
+cargo install cargo-zigbuild
 ```
 
-For a 32-bit ARMv7 DietPi image:
+Now build:
+
+```bash
+./build-pi.sh                  # → dist/iot-switch (aarch64, ~1.2 MB)
+```
+
+The web UI and API are compiled **into** the binary — `dist/iot-switch` is the entire app.
+
+For a 32-bit ARMv7 DietPi image (older Pis):
+
 ```bash
 TARGET=arm-unknown-linux-gnueabihf ./build-pi.sh
 ```
 
-The UI and API are compiled in — `dist/iot-switch` is the whole app.
-
-## Deploy to the Pi
-
-1. Flash **Raspberry Pi OS / DietPi (64-bit)** on the Pi Zero 2, enable SSH.
-2. Copy the binary + config to the Pi, run setup:
+## Move it to the Pi
 
 ```bash
+# copy from your dev machine to the Pi (enable SSH first)
 scp dist/iot-switch config.json pi@raspberrypi.local:~/
-ssh pi@raspberrypi.local "sudo mkdir -p /opt/iot-switch && sudo cp iot-switch config.json /opt/iot-switch/"
-# then run setup.sh from a clone of this repo on the Pi, or skip straight to the service:
+
+# SSH in and install
+ssh pi@raspberrypi.local
+sudo mkdir -p /opt/iot-switch
+sudo cp iot-switch config.json /opt/iot-switch/
 ```
 
-### Commands
+### Run it as a service (recommended)
+
+Simplest: install `setup.sh` from a clone of this repo on the Pi, then:
 
 ```bash
-sudo systemctl status iot-switch
-sudo systemctl restart iot-switch
-sudo journalctl -u iot-switch -f
+git clone <this-repo> ~/iot-switch && cd ~/iot-switch
+sudo bash setup.sh             # installs to /opt/iot-switch + registers iot-switch.service
+```
+
+Or create the service by hand:
+
+```bash
+sudo tee /etc/systemd/system/iot-switch.service > /dev/null <<'EOF'
+[Unit]
+Description=IoT Switch
+After=network.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/opt/iot-switch
+ExecStart=/opt/iot-switch/iot-switch
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo systemctl daemon-reload
+sudo systemctl enable --now iot-switch
+```
+
+### Verify
+
+```bash
+sudo systemctl status iot-switch   # running?
+curl http://<pi-ip>:5000/api/status
+# open http://<pi-ip>:5000 in a browser
 ```
 
 `config.json` is auto-created if missing:
