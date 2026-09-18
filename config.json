@@ -1,9 +1,122 @@
 {
   "relay_gpio": 17,
-  "schedules": [],
+  "schedules": [
+    {
+      "id": 1789750157601,
+      "time": "23:00",
+      "duration_minutes": 30,
+      "days": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ]
+    },
+    {
+      "id": 1789750171040,
+      "time": "00:00",
+      "duration_minutes": 30,
+      "days": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ]
+    },
+    {
+      "id": 1789750182524,
+      "time": "01:00",
+      "duration_minutes": 30,
+      "days": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ]
+    },
+    {
+      "id": 1789750185490,
+      "time": "02:00",
+      "duration_minutes": 30,
+      "days": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ]
+    },
+    {
+      "id": 1789750190351,
+      "time": "03:00",
+      "duration_minutes": 30,
+      "days": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ]
+    },
+    {
+      "id": 1789750192728,
+      "time": "04:00",
+      "duration_minutes": 30,
+      "days": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ]
+    },
+    {
+      "id": 1789750239036,
+      "time": "05:00",
+      "duration_minutes": 30,
+      "days": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ]
+    },
+    {
+      "id": 1789750242282,
+      "time": "06:00",
+      "duration_minutes": 30,
+      "days": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ]
+    }
+  ],
   "manual_override": {
-    "state": true,
-    "until": "2026-05-17T23:22:34.356648",
-    "duration": 15
+    "state": false,
+    "until": null,
+    "duration": null
   }
 }

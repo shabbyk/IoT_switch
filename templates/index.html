@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>IoT Switch</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
   <div class="container">
@@ -60,9 +60,13 @@
         <fieldset>
           <legend>Days</legend>
           <div class="day-checkboxes">
-            {% for num, name in weekdays %}
-            <label><input type="checkbox" name="days" value="{{ num }}" checked> {{ name[:3] }}</label>
-            {% endfor %}
+            <label><input type="checkbox" name="days" value="1" checked> Mon</label>
+            <label><input type="checkbox" name="days" value="2" checked> Tue</label>
+            <label><input type="checkbox" name="days" value="3" checked> Wed</label>
+            <label><input type="checkbox" name="days" value="4" checked> Thu</label>
+            <label><input type="checkbox" name="days" value="5" checked> Fri</label>
+            <label><input type="checkbox" name="days" value="6" checked> Sat</label>
+            <label><input type="checkbox" name="days" value="7" checked> Sun</label>
           </div>
         </fieldset>
         <button type="submit" class="btn btn-add">Add Schedule</button>
@@ -71,7 +75,7 @@
 
     <div class="card">
       <h2>Hardware</h2>
-      <p>GPIO Pin: <strong>BCM {{ initial_status.relay_gpio }}</strong></p>
+      <p>GPIO Pin: <strong>BCM <span id="relay-gpio">–</span></strong></p>
     </div>
   </div>
 
@@ -107,6 +111,8 @@
       const timerContainer = document.getElementById('timer-bar-container');
       const timerBar = document.getElementById('timer-bar');
       const timerText = document.getElementById('timer-text');
+
+      document.getElementById('relay-gpio').textContent = data.relay_gpio ?? '–';
 
       // Power icon glow
       powerIcon.classList.toggle('on', data.pump_on);
