@@ -1,5 +1,6 @@
 {
   "relay_gpio": 17,
   "schedules": [],
-  "manual_override": null
+  "manual_override": null,
+  "allow_shutdown": true
 }

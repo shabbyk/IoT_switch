@@ -42,6 +42,7 @@ async fn main() -> anyhow::Result<()> {
         )
         .route("/api/schedules/:id", delete(api_remove_schedule))
         .route("/api/manual", post(api_manual).delete(api_clear_manual))
+        .route("/api/system/shutdown", post(api_shutdown))
         .with_state(ctrl);
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:5000").await?;
@@ -111,4 +112,42 @@ async fn api_manual(State(ctrl): State<Arc<Controller>>, payload: Json<Value>) -
 async fn api_clear_manual(State(ctrl): State<Arc<Controller>>) -> Json<Status> {
     ctrl.clear_manual();
     Json(ctrl.status())
+}
+
+// ── system ───────────────────────────────────────────────
+
+async fn api_shutdown(State(ctrl): State<Arc<Controller>>) -> Response {
+    if !ctrl.allow_shutdown() {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(json!({"error": "shutdown disabled (set \"allow_shutdown\": true in config.json)"})),
+        )
+            .into_response();
+    }
+    std::thread::spawn(shutdown_now);
+    (StatusCode::ACCEPTED, Json(json!({"shutting_down": true}))).into_response()
+}
+
+fn shutdown_now() {
+    if std::env::var("IOT_SWITCH_SIMULATE").is_ok() {
+        info!("simulated shutdown requested — not powering off");
+        return;
+    }
+    // let the HTTP response flush before the box goes dark
+    std::thread::sleep(std::time::Duration::from_millis(600));
+    let attempts: [(&str, &[&str]); 3] = [
+        ("systemctl", &["poweroff"]),
+        ("/sbin/shutdown", &["-h", "now"]),
+        ("sudo", &["-n", "systemctl", "poweroff"]),
+    ];
+    for (bin, args) in attempts {
+        match std::process::Command::new(bin).args(args).spawn() {
+            Ok(_) => {
+                info!("issued `{bin} {:?}`", args);
+                return;
+            }
+            Err(e) => warn!("failed to launch `{bin}`: {e}"),
+        }
+    }
+    warn!("no viable shutdown command found");
 }

@@ -76,6 +76,12 @@
     <div class="card">
       <h2>Hardware</h2>
       <p>GPIO Pin: <strong>BCM <span id="relay-gpio">–</span></strong></p>
+      <p class="gpio-live-row">Pin level: <span class="gpio-dot" id="gpio-dot"></span> <span id="gpio-level-label">–</span></p>
+    </div>
+
+    <div class="card" id="shutdown-card" style="display:none">
+      <h2>System</h2>
+      <button class="btn btn-danger" onclick="shutdownPi()">Shutdown Pi</button>
     </div>
   </div>
 
@@ -113,6 +119,19 @@
       const timerText = document.getElementById('timer-text');
 
       document.getElementById('relay-gpio').textContent = data.relay_gpio ?? '–';
+      document.getElementById('shutdown-card').style.display =
+        data.allow_shutdown ? '' : 'none';
+
+      const gpioDot = document.getElementById('gpio-dot');
+      const gpioLabel = document.getElementById('gpio-level-label');
+      if (data.gpio_level == null) {
+        gpioDot.className = 'gpio-dot sim';
+        gpioLabel.textContent = 'simulation (no GPIO)';
+      } else {
+        const low = data.gpio_level === 0;
+        gpioDot.className = 'gpio-dot ' + (low ? 'low' : 'high');
+        gpioLabel.textContent = data.gpio_level + (low ? ' (LOW — relay ON)' : ' (HIGH — relay OFF)');
+      }
 
       // Power icon glow
       powerIcon.classList.toggle('on', data.pump_on);
@@ -265,6 +284,14 @@
 
     function removeSchedule(id) {
       fetch(`/api/schedules/${id}`, {method: 'DELETE'}).then(r => r.json()).then(refresh);
+    }
+
+    function shutdownPi() {
+      if (!confirm('Shut down the Pi now?\n\nThe switch goes offline and any running load stops immediately. Restore power to start it again.')) return;
+      fetch('/api/system/shutdown', {method: 'POST'}).then(r => r.json()).then(() => {
+        const card = document.getElementById('shutdown-card');
+        if (card) card.innerHTML = '<h2>System</h2><p class="subtitle">Shutting down… restore power to start again.</p>';
+      });
     }
 
     document.getElementById('btn-on').addEventListener('click', () => {

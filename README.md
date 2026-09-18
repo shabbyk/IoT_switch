@@ -117,7 +117,8 @@ curl http://<pi-ip>:5000/api/status
 {
   "relay_gpio": 17,
   "schedules": [],
-  "manual_override": null
+  "manual_override": null,
+  "allow_shutdown": false
 }
 ```
 
@@ -137,6 +138,7 @@ bash setup-wifi.sh   # SSID PumpController / pump1234, auto-starts when home WiF
 | `DELETE` | `/api/schedules/<id>` | Remove schedule |
 | `POST` | `/api/manual` | Override `{"state":true, "duration":15}` |
 | `DELETE` | `/api/manual` | Clear override, return to auto |
+| `POST` | `/api/system/shutdown` | Power off the Pi (403 unless config has `"allow_shutdown": true`) |
 
 ## Hardware Setup
 

@@ -47,6 +47,8 @@ pub struct Config {
     pub schedules: Vec<Schedule>,
     #[serde(default)]
     pub manual_override: Option<ManualOverride>,
+    #[serde(default)]
+    pub allow_shutdown: bool,
 }
 
 fn default_pin() -> u8 {
@@ -59,6 +61,7 @@ impl Default for Config {
             relay_gpio: 17,
             schedules: Vec::new(),
             manual_override: None,
+            allow_shutdown: false,
         }
     }
 }
@@ -90,6 +93,8 @@ pub struct Status {
     pub active_schedule: Option<Schedule>,
     pub schedules: Vec<Schedule>,
     pub relay_gpio: u8,
+    pub allow_shutdown: bool,
+    pub gpio_level: Option<u8>,
 }
 
 impl Controller {
@@ -216,7 +221,20 @@ impl Controller {
             active_schedule: inner.active_schedule.clone(),
             schedules: inner.config.schedules.clone(),
             relay_gpio: inner.config.relay_gpio,
+            allow_shutdown: inner.config.allow_shutdown,
+            gpio_level: Self::gpio_level(&*inner),
         }
+    }
+
+    fn gpio_level(inner: &Inner) -> Option<u8> {
+        match &inner.relay {
+            Relay::Gpio(pin) => Some(if pin.is_set_low() { 0 } else { 1 }),
+            Relay::Simulated => None,
+        }
+    }
+
+    pub fn allow_shutdown(&self) -> bool {
+        self.inner.lock().unwrap().config.allow_shutdown
     }
 
     // ── internals ─────────────────────────────────────────
