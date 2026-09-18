@@ -74,9 +74,9 @@ enum Relay {
 struct Inner {
     config: Config,
     relay: Relay,
-    pump_on: bool,
+    relay_on: bool,
     active_schedule: Option<Schedule>,
-    pump_started_at: Option<SystemTime>,
+    relay_started_at: Option<SystemTime>,
 }
 
 pub struct Controller {
@@ -86,9 +86,9 @@ pub struct Controller {
 
 #[derive(Debug, Serialize)]
 pub struct Status {
-    pub pump_on: bool,
-    pub pump_started_at: Option<String>,
-    pub pump_remaining_seconds: Option<i64>,
+    pub relay_on: bool,
+    pub relay_started_at: Option<String>,
+    pub relay_remaining_seconds: Option<i64>,
     pub manual_override: Option<ManualOverride>,
     pub active_schedule: Option<Schedule>,
     pub schedules: Vec<Schedule>,
@@ -116,9 +116,9 @@ impl Controller {
             inner: Mutex::new(Inner {
                 config,
                 relay,
-                pump_on: false,
+                relay_on: false,
                 active_schedule: None,
-                pump_started_at: None,
+                relay_started_at: None,
             }),
         });
         ctrl.tick();
@@ -214,9 +214,9 @@ impl Controller {
     pub fn status(&self) -> Status {
         let inner = self.inner.lock().unwrap();
         Status {
-            pump_on: inner.pump_on,
-            pump_started_at: inner.pump_started_at.map(fmt_time),
-            pump_remaining_seconds: Self::pump_remaining(&inner),
+            relay_on: inner.relay_on,
+            relay_started_at: inner.relay_started_at.map(fmt_time),
+            relay_remaining_seconds: Self::relay_remaining(&inner),
             manual_override: inner.config.manual_override.clone(),
             active_schedule: inner.active_schedule.clone(),
             schedules: inner.config.schedules.clone(),
@@ -315,8 +315,8 @@ impl Controller {
         false
     }
 
-    fn pump_remaining(inner: &Inner) -> Option<i64> {
-        if !inner.pump_on {
+    fn relay_remaining(inner: &Inner) -> Option<i64> {
+        if !inner.relay_on {
             return None;
         }
         let now = Local::now().naive_local();
@@ -368,11 +368,11 @@ fn rand_fallback_id() -> u64 {
 }
 
 fn apply_relay(inner: &mut Inner, on: bool, reason: &str) {
-    if inner.pump_on != on {
+    if inner.relay_on != on {
         info!("relay {} ({reason})", if on { "ON" } else { "OFF" });
     }
-    inner.pump_on = on;
-    inner.pump_started_at = if on { Some(SystemTime::now()) } else { None };
+    inner.relay_on = on;
+    inner.relay_started_at = if on { Some(SystemTime::now()) } else { None };
 
     match &mut inner.relay {
         Relay::Gpio(pin) => {
