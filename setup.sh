@@ -1,26 +1,29 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "=== IoT Switch — Pi Setup ==="
+echo "=== IoT Switch — Pi Setup (Rust binary) ==="
 
-# 1. update system
-sudo apt-get update && sudo apt-get upgrade -y
-
-# 2. install python & pip
-sudo apt-get install -y python3 python3-pip python3-venv
-
-# 3. create venv & install deps
 cd "$(dirname "$0")"
-python3 -m venv venv
-source venv/bin/activate
-pip install --upgrade pip
-pip install -r requirements.txt
 
-# 4. enable GPIO access for non-root
+# 1. ensure the cross-compiled binary exists
+BIN="dist/iot-switch"
+if [ ! -x "$BIN" ]; then
+  echo "error: $BIN not found. Build it first (./build-pi.sh on your dev machine)." >&2
+  exit 1
+fi
+
+# 2. install binary + config to /opt/iot-switch
+sudo mkdir -p /opt/iot-switch
+sudo cp "$BIN" /opt/iot-switch/iot-switch
+if [ -f config.json ]; then
+  sudo cp config.json /opt/iot-switch/config.json
+fi
+
+# 3. /dev/gpiomem is owned by group `gpio`
 sudo usermod -a -G gpio "$USER" || true
 
-# 5. create systemd service
-SERVICE_NAME="water-pump"
+# 4. systemd service
+SERVICE_NAME="iot-switch"
 SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
 
 sudo tee "$SERVICE_FILE" > /dev/null <<EOF
@@ -31,8 +34,8 @@ After=network.target
 [Service]
 Type=simple
 User=$USER
-WorkingDirectory=$(pwd)
-ExecStart=$(pwd)/venv/bin/python app.py
+WorkingDirectory=/opt/iot-switch
+ExecStart=/opt/iot-switch/iot-switch
 Restart=always
 RestartSec=10
 

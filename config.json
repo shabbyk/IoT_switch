@@ -3,7 +3,8 @@
   "schedules": [],
   "manual_override": {
     "state": true,
-    "until": "2026-05-17T23:22:34.356648",
-    "duration": 15
-  }
+    "until": "2026-09-19T00:15:00.052474",
+    "duration": 8
+  },
+  "allow_shutdown": true
 }

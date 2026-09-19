@@ -4,14 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>IoT Switch</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
   <div class="container">
     <h1>IoT Switch</h1>
 
     <div class="card status-card">
-      <div class="pump-status" id="pump-status">
+      <div class="relay-status" id="relay-status">
         <div class="power-icon" id="power-icon">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M12 2v10"/>
@@ -19,15 +19,15 @@
           </svg>
         </div>
         <div class="status-main">
-          <span class="indicator" id="pump-indicator"></span>
-          <span id="pump-label">Checking...</span>
+          <span class="indicator" id="relay-indicator"></span>
+          <span id="relay-label">Checking...</span>
         </div>
       </div>
       <div class="timer-bar-container" id="timer-bar-container" style="display:none">
         <div class="timer-bar" id="timer-bar"></div>
       </div>
       <div class="timer-text" id="timer-text"></div>
-      <p class="subtitle" id="pump-reason"></p>
+      <p class="subtitle" id="relay-reason"></p>
     </div>
 
     <div class="card">
@@ -60,9 +60,13 @@
         <fieldset>
           <legend>Days</legend>
           <div class="day-checkboxes">
-            {% for num, name in weekdays %}
-            <label><input type="checkbox" name="days" value="{{ num }}" checked> {{ name[:3] }}</label>
-            {% endfor %}
+            <label><input type="checkbox" name="days" value="1" checked> Mon</label>
+            <label><input type="checkbox" name="days" value="2" checked> Tue</label>
+            <label><input type="checkbox" name="days" value="3" checked> Wed</label>
+            <label><input type="checkbox" name="days" value="4" checked> Thu</label>
+            <label><input type="checkbox" name="days" value="5" checked> Fri</label>
+            <label><input type="checkbox" name="days" value="6" checked> Sat</label>
+            <label><input type="checkbox" name="days" value="7" checked> Sun</label>
           </div>
         </fieldset>
         <button type="submit" class="btn btn-add">Add Schedule</button>
@@ -71,7 +75,13 @@
 
     <div class="card">
       <h2>Hardware</h2>
-      <p>GPIO Pin: <strong>BCM {{ initial_status.relay_gpio }}</strong></p>
+      <p>GPIO Pin: <strong>BCM <span id="relay-gpio">–</span></strong></p>
+      <p class="gpio-live-row">Pin level: <span class="gpio-dot" id="gpio-dot"></span> <span id="gpio-level-label">–</span></p>
+    </div>
+
+    <div class="card" id="shutdown-card" style="display:none">
+      <h2>System</h2>
+      <button class="btn btn-danger" onclick="shutdownPi()">Shutdown Pi</button>
     </div>
   </div>
 
@@ -100,26 +110,41 @@
     }
 
     function renderStatus(data) {
-      const indicator = document.getElementById('pump-indicator');
-      const label = document.getElementById('pump-label');
-      const reason = document.getElementById('pump-reason');
+      const indicator = document.getElementById('relay-indicator');
+      const label = document.getElementById('relay-label');
+      const reason = document.getElementById('relay-reason');
       const powerIcon = document.getElementById('power-icon');
       const timerContainer = document.getElementById('timer-bar-container');
       const timerBar = document.getElementById('timer-bar');
       const timerText = document.getElementById('timer-text');
 
+      document.getElementById('relay-gpio').textContent = data.relay_gpio ?? '–';
+      document.getElementById('shutdown-card').style.display =
+        data.allow_shutdown ? '' : 'none';
+
+      const gpioDot = document.getElementById('gpio-dot');
+      const gpioLabel = document.getElementById('gpio-level-label');
+      if (data.gpio_level == null) {
+        gpioDot.className = 'gpio-dot sim';
+        gpioLabel.textContent = 'simulation (no GPIO)';
+      } else {
+        const low = data.gpio_level === 0;
+        gpioDot.className = 'gpio-dot ' + (low ? 'low' : 'high');
+        gpioLabel.textContent = data.gpio_level + (low ? ' (LOW — relay ON)' : ' (HIGH — relay OFF)');
+      }
+
       // Power icon glow
-      powerIcon.classList.toggle('on', data.pump_on);
+      powerIcon.classList.toggle('on', data.relay_on);
 
       // Indicator + label
-      if (data.pump_on) {
+      if (data.relay_on) {
         indicator.className = 'indicator on';
-        label.textContent = 'PUMP RUNNING';
-        document.body.classList.add('pump-active');
+        label.textContent = 'RELAY RUNNING';
+        document.body.classList.add('relay-active');
       } else {
         indicator.className = 'indicator off';
-        label.textContent = 'PUMP OFF';
-        document.body.classList.remove('pump-active');
+        label.textContent = 'RELAY OFF';
+        document.body.classList.remove('relay-active');
       }
 
       // Reason
@@ -138,9 +163,9 @@
       }
 
       // Timer bar + countdown
-      const remaining = data.pump_remaining_seconds;
-      timerStart = data.pump_started_at;
-      if (data.pump_on && remaining != null && timerStart) {
+      const remaining = data.relay_remaining_seconds;
+      timerStart = data.relay_started_at;
+      if (data.relay_on && remaining != null && timerStart) {
         timerTotal = remaining + getElapsedSeconds(timerStart);
         updateTimerDisplay();
         timerContainer.style.display = 'block';
@@ -148,7 +173,7 @@
       } else {
         timerContainer.style.display = 'none';
         timerTotal = null;
-        if (data.pump_on) {
+        if (data.relay_on) {
           timerText.innerHTML = '<span class="timer-large">Running</span><span class="timer-unit"> indefinite</span>';
           timerText.className = 'timer-text visible';
         } else {
@@ -259,6 +284,14 @@
 
     function removeSchedule(id) {
       fetch(`/api/schedules/${id}`, {method: 'DELETE'}).then(r => r.json()).then(refresh);
+    }
+
+    function shutdownPi() {
+      if (!confirm('Shut down the Pi now?\n\nThe switch goes offline and any running load stops immediately. Restore power to start it again.')) return;
+      fetch('/api/system/shutdown', {method: 'POST'}).then(r => r.json()).then(() => {
+        const card = document.getElementById('shutdown-card');
+        if (card) card.innerHTML = '<h2>System</h2><p class="subtitle">Shutting down… restore power to start again.</p>';
+      });
     }
 
     document.getElementById('btn-on').addEventListener('click', () => {

@@ -4,7 +4,7 @@ body {
   background: #0f172a; color: #e2e8f0; padding: 20px;
   transition: background 0.5s;
 }
-body.pump-active { background: #0a1f0f; }
+body.relay-active { background: #0a1f0f; }
 .container { max-width: 700px; margin: 0 auto; }
 h1 { text-align: center; margin-bottom: 24px; font-weight: 600; }
 h2 { margin-bottom: 12px; font-size: 1.15rem; }
@@ -16,8 +16,8 @@ h3 { font-size: 1rem; margin-bottom: 8px; }
 }
 .status-card { text-align: center; padding: 24px; }
 
-/* pump status row */
-.pump-status {
+/* relay status row */
+.relay-status {
   display: flex; align-items: center; justify-content: center; gap: 16px;
   font-size: 1.4rem;
 }
@@ -70,6 +70,16 @@ h3 { font-size: 1rem; margin-bottom: 8px; }
 
 /* reason */
 .subtitle { color: #94a3b8; font-size: 0.9rem; margin-top: 8px; }
+
+/* gpio live pin level */
+.gpio-live-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; color: #94a3b8; font-size: 0.9rem; }
+.gpio-dot {
+  width: 14px; height: 14px; border-radius: 50%; display: inline-block;
+  transition: background 0.2s, box-shadow 0.2s;
+}
+.gpio-dot.low   { background: #22c55e; box-shadow: 0 0 8px #22c55eaa; }
+.gpio-dot.high  { background: #64748b; }
+.gpio-dot.sim   { background: #f59e0b; box-shadow: 0 0 6px #f59e0b88; }
 
 /* buttons */
 .btn, .btn-small {
